@@ -1,0 +1,46 @@
+# ========== Keil MDK + STM32 工程 .gitignore ==========
+
+# ---- Keil MDK 编译输出垃圾文件 ----
+*.o
+*.d
+*.crf
+*.axf
+*.lnp
+*.sct
+*.htm
+*.map
+*.dep
+*.hex
+*.bin
+*.lst
+*.build_log.htm
+*.__i
+
+# ---- Keil 用户个性化配置（窗口布局/断点/工程选项，避免多电脑冲突）----
+*.uvguix.*
+*.uvgui.*
+*.uvoptx
+
+# ---- 输出/生成目录 ----
+RTE/
+DebugConfig/
+Listings/
+Objects/
+
+# ---- 调试/临时文件 ----
+JLinkLog.txt
+*.bak
+*.log
+*~
+
+# ---- VSCode 本地配置（保留共享的配置文件）----
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/c_cpp_properties.json
+
+# ========== 以下文件必须入库，勿忽略 ==========
+# 27_custroller.ioc          （CubeMX 源码配置）
+# .mxproject                 （CubeMX 工程元数据）
+# 27_custroller.uvprojx      （Keil 工程文件）
+# startup_stm32f427xx.s      （启动文件）
