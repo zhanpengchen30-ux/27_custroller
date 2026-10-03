@@ -46,7 +46,10 @@ void DM_J4310_Disable(uint16_t can_id) {
 void DM_J4310_SendMIT(DM_J4310_t *motor) {
     float send_t_ff = motor->t_ff * (float)motor->dir;
 
-    uint16_t p_int  = float_to_uint(motor->p_des, DM_P_MIN, DM_P_MAX, 16);
+    // ★★★ 核心修复：把关节逻辑目标角度逆变换为电机底层的 raw 编码器绝对弧度 ★★★
+    float send_p_des = motor->p_des * (float)motor->dir + motor->zero_offset;
+
+    uint16_t p_int  = float_to_uint(send_p_des, DM_P_MIN, DM_P_MAX, 16);
     uint16_t v_int  = float_to_uint(motor->v_des, DM_V_MIN, DM_V_MAX, 12);
     uint16_t kp_int = float_to_uint(motor->kp,    DM_KP_MIN, DM_KP_MAX, 12);
     uint16_t kd_int = float_to_uint(motor->kd,    DM_KD_MIN, DM_KD_MAX, 12);

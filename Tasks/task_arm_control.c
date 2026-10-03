@@ -8,33 +8,30 @@
 uint8_t g_arm_zero_cali_cmd = 0;
 
 void Task_ArmControl(void const * argument) {
-    // 1. 硬件初始化：必须显式启动 CAN2 及过滤器
     BSP_CAN2_Init();
-
-    // 2. 机械臂控制与状态初始化
     Arm_Control_Init();
+    g_arm.mode = ARM_SYS_INIT;
 
-    // 3. 上电宽限期：给电机 1 秒时间上线与发送心跳，不触发急停
-    osDelay(1000);
+    // 关键：给电机 2.5 秒的充分开机自检时间！
+    // 观察电机红灯亮起并稳定后，单片机才发起第一次通信
+    osDelay(2500);
 
-    // 4. 依次使能 6 个电机
+    // 依次使能 6 个电机（每台间隔 20ms，给总线充裕的建链时间）
     for (int i = 0; i < 6; i++) {
         DM_J4310_Enable(g_arm.motors[i].id);
-        osDelay(10);
+        osDelay(20);
     }
 
+    // 此时正常情况下，电机的红灯会瞬间刷刷刷全变成【绿灯】！
     g_arm.mode = ARM_SYS_ZERO_FORCE;
 
     for (;;) {
-        // 外部（Keil 变量/按键）请求校准零点
         if (g_arm_zero_cali_cmd == 1) {
             Arm_Calibrate_Zero();
             g_arm_zero_cali_cmd = 0;
         }
 
-        // 执行控制解算与力矩下发
         Arm_Control_Loop();
-
-        osDelay(3); // 刷新率约为 300Hz
+        osDelay(3);
     }
 }

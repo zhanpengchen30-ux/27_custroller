@@ -44,3 +44,6 @@ JLinkLog.txt
 # .mxproject                 （CubeMX 工程元数据）
 # 27_custroller.uvprojx      （Keil 工程文件）
 # startup_stm32f427xx.s      （启动文件）
+
+# ---- Keil 机器相关插件状态 ----
+ExtDll.iex

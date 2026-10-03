@@ -30,19 +30,27 @@ uint8_t BSP_CAN2_SendMsg(uint32_t std_id, uint8_t *data, uint8_t len) {
     CAN_TxHeaderTypeDef tx_header;
     uint32_t tx_mailbox;
 
+    // 核心自愈逻辑：如果 CAN2 处于错误锁死状态，强制复位恢复为 LISTENING
+    if (hcan2.State == HAL_CAN_STATE_ERROR) {
+        hcan2.State = HAL_CAN_STATE_LISTENING;
+        hcan2.ErrorCode = HAL_CAN_ERROR_NONE;
+    }
+
     tx_header.StdId = std_id;
     tx_header.IDE = CAN_ID_STD;
     tx_header.RTR = CAN_RTR_DATA;
     tx_header.DLC = len;
 
-    // 邮箱满自旋等待防丢包
+    // 等待空闲邮箱（最多等 1ms）
     uint32_t timeout = 500;
     while (HAL_CAN_GetTxMailboxesFreeLevel(&hcan2) == 0 && timeout--) {}
 
     if (HAL_CAN_AddTxMessage(&hcan2, &tx_header, data, &tx_mailbox) != HAL_OK) {
-        return 0; // 发送失败
+        // 如果邮箱被占死，强行撤销挂死请求，保证下一帧畅通
+        HAL_CAN_AbortTxRequest(&hcan2, CAN_TX_MAILBOX0 | CAN_TX_MAILBOX1 | CAN_TX_MAILBOX2);
+        return 0;
     }
-    return 1; // 发送成功
+    return 1;
 }
 
 // CAN2 接收中断回调函数
