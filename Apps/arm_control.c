@@ -46,7 +46,11 @@ void Arm_Control_Loop(void) {
             if (g_arm.is_online[i]) {
                 g_arm.motors[i].kp = 0.0f;
                 g_arm.motors[i].kd = 0.05f;
-                g_arm.motors[i].t_ff = g_arm.tau_gravity[i] * g_grav_dir;
+                // 急停也按当前 g_scale 补偿，避免满值"顶手"（原来漏乘 g_scale 导致急停时 J2/J3 突然满力）
+                float comp = g_arm.tau_gravity[i] * g_grav_dir;
+                if (i == 1)      comp *= g_scale_j2;
+                else if (i == 2) comp *= g_scale_j3;
+                g_arm.motors[i].t_ff = comp;
             } else {
                 g_arm.motors[i].kp = 0.0f;
                 g_arm.motors[i].kd = 0.0f;
