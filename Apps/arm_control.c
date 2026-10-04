@@ -7,8 +7,9 @@
 #include <math.h>
 
 // Keil Watch 可实时调整。必须在支撑机械臂的情况下，从低比例开始标定。
-volatile float g_scale_j2 = 0.20f;
-volatile float g_scale_j3 = 0.20f;
+// 默认 0.10：J2 模型约 3.32 N·m，0.10≈0.33 N·m，适合第一次观察方向；方向对再 0.15→0.20 加
+volatile float g_scale_j2 = 0.10f;
+volatile float g_scale_j3 = 0.10f;
 volatile float g_grav_dir = 1.0f;
 volatile float g_drag_kd  = 0.05f;
 
