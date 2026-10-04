@@ -100,7 +100,11 @@ void Arm_Control_Loop(void) {
         } else {
             unlock_streak = 0;
             if (drag_state == 1) {
-                if (++lock_cnt >= LOCK_HOLD_CYCLES) drag_state = 0;  // 全臂停稳后才锁
+                if (v_drag < V_LOCK) {                // 只有全臂真正停稳（<0.04 rad/s）才开始锁止计时
+                    if (++lock_cnt >= LOCK_HOLD_CYCLES) drag_state = 0;
+                } else {
+                    lock_cnt = 0;                     // 速度仍在 V_LOCK~UNLOCK 之间：还在被推/漂移，禁止锁
+                }
             }
         }
     }
