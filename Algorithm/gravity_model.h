@@ -14,6 +14,10 @@ extern volatile float g_grav_lc_end;
 // 需要按机械臂已知参考姿态校准，不能仅凭“按下调零”自动推断物理零度。
 extern volatile float g_gravity_zero[6];
 
+// 角度组合符号（Watch 实时切 +1/-1 验证）：th23=q2+g_sign_q3*q3，th235=th23+g_sign_q5*q5
+extern volatile float g_sign_q3;
+extern volatile float g_sign_q5;
+
 void Arm_CalcGravityTorque(float q[6], float tau_g[6]);
 
 #endif
