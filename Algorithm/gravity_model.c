@@ -19,10 +19,9 @@ volatile float g_grav_lc_end = 0.08f;
 // 初始值 0 不是自动完成了物理标定；必须根据已知参考姿态校准。
 volatile float g_gravity_zero[6] = {0, 0, 0, 0, 0, 0};
 
-// 角度组合符号（Watch 实时切）：默认 +1 = 串联同向 th23=q2+q3。
-// 若实机切换后补偿方向正确/手感变自然，说明该关节实际是反向叠加（如 q2-q3）。
-volatile float g_sign_q3 = 1.0f;   // th23 = q2 + g_sign_q3 * q3
-volatile float g_sign_q5 = 1.0f;   // th235 = th23 + g_sign_q5 * q5
+// 角度组合符号（Watch 实时切）：J3 实测 th23=q2-q3（g_sign_q3=-1），J5 待实测。
+volatile float g_sign_q3 = -1.0f;   // th23 = q2 + g_sign_q3 * q3
+volatile float g_sign_q5 = 1.0f;    // th235 = th23 + g_sign_q5 * q5
 
 void Arm_CalcGravityTorque(float q[6], float tau_g[6])
 {
