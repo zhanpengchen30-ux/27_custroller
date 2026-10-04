@@ -6,23 +6,16 @@
 #include "safety.h"
 #include <math.h>
 
-volatile float g_scale_j2 = 1.0f; 
-volatile float g_scale_j3 = 1.0f; 
-volatile float g_grav_dir = 1.0f;  // 重力补偿极性：1 或 -1。现场翻转测试：水平放手臂，若翻转后能托住说明原来反了
+// ---- 现场调参（Keil Watch 实时改，立即生效）----
+volatile float g_scale_j2 = 0.5f;   // J2 重力补偿比例：0.5 起步，现场慢慢加，加到"不沉不顶"为止
+volatile float g_scale_j3 = 0.5f;   // J3 同上
+volatile float g_grav_dir = 1.0f;   // 重力补偿极性：1 或 -1。水平放手臂，若翻转后能托住说明原来反了
+volatile float g_drag_kd  = 0.15f;  // 拖动阻尼：0.10~0.20 合适，超过 0.3 会有明显"刹车感"
 
-// ★★★ 调参秘籍：1 = 开启纯零力拖动模式(随便推)；0 = 锁定保持模式(稳稳悬停) ★★★
-volatile uint8_t g_drag_mode = 0; 
+// ★★★ 模式：1 = 零刚度重力拖动（默认，推荐）；0 = 位置锁定保持（备选：示教完需要锁住时用）★★★
+volatile uint8_t g_drag_mode = 1;
 
-// ---- 拖/锁状态机参数（Live Watch 可实时改 g_drag_*，改后立即生效）----
-volatile float g_drag_v_unlock = 0.15f;  // 进入拖动阈值：全臂最大滤波速度 (rad/s)
-volatile float g_drag_kp_ramp  = 1.5f;   // kp 斜坡步长/拍（1 拍≈3ms），决定锁止/解锁柔顺度
-volatile float g_drag_kp_drag  = 2.0f;   // 拖动态低刚度（托底防自由落体；调 0 则完全失重，但补偿不准时会掉）
-#define V_LOCK 0.04f            // 退出拖动速度阈值（迟滞；全臂低于此且持续 LOCK_HOLD_CYCLES 拍才锁）
-#define LOCK_HOLD_CYCLES 15     // 全臂停稳 ~45ms 才锁死，防松手瞬间误锁
-#define ENGAGE_CYCLES 300       // 开机锁定建立期：上电前 0.9s 强制锁定，等 kp 与重力补偿就位，杜绝开机即掉
-#define UNLOCK_STREAK 5         // 速度持续超阈值 5 拍（15ms）才解锁，抗瞬时扰动/噪声
-
-// 锁止刚度/阻尼（J2/J3 按 ζ≈0.7~1.0 估算，其余按防漂移；实机手感为准）
+// 锁定保持模式参数（仅 g_drag_mode=0 时生效；纯位置保持，无拖动检测、无自动锁止）
 static const float KP_HOLD[6] = {10.f, 25.f, 20.f, 10.f, 10.f, 10.f};
 static const float KD_HOLD[6] = {0.8f, 2.0f, 1.2f, 0.5f, 0.3f, 0.4f};
 
@@ -32,7 +25,7 @@ static uint8_t is_initialized = 0;
 void Arm_Calibrate_Zero(void) {
     for (int i = 0; i < 6; i++) {
         g_arm.motors[i].zero_offset = g_arm.motors[i].pos_raw;
-        hold_pos[i] = 0.0f;
+        hold_pos[i] = g_arm.q[i];   // 锁定模式锁在校零姿态，而不是角度 0
     }
 }
 
@@ -45,7 +38,7 @@ void Arm_Control_Loop(void) {
     Joint_UpdateState(g_arm.motors, g_arm.q, g_arm.v);
     Arm_CalcGravityTorque(g_arm.q, g_arm.tau_gravity);
 
-    // ★ 急停/掉线真正生效：在线电机保留重力托举但放弃锁止（可被人手扶住），掉线电机完全松手 ★
+    // ★ 急停/掉线：在线电机保留重力托举但放弃闭环（可被人手扶住），掉线电机完全松手 ★
     if (!Safety_CheckArm(&g_arm)) {
         for (int i = 0; i < 6; i++) {
             g_arm.motors[i].p_des = g_arm.q[i];   // 目标=当前位置，防 p 跳变
@@ -53,7 +46,7 @@ void Arm_Control_Loop(void) {
             if (g_arm.is_online[i]) {
                 g_arm.motors[i].kp = 0.0f;
                 g_arm.motors[i].kd = 0.05f;
-                g_arm.motors[i].t_ff = g_arm.tau_gravity[i];
+                g_arm.motors[i].t_ff = g_arm.tau_gravity[i] * g_grav_dir;
             } else {
                 g_arm.motors[i].kp = 0.0f;
                 g_arm.motors[i].kd = 0.0f;
@@ -64,7 +57,7 @@ void Arm_Control_Loop(void) {
         return;
     }
 
-    // 开机初始化当前位置为保持点
+    // 开机记录保持点（仅锁定模式用）
     if (!is_initialized && g_arm.mode == ARM_SYS_ZERO_FORCE) {
         for (int i = 0; i < 6; i++) {
             hold_pos[i] = g_arm.q[i];
@@ -74,63 +67,32 @@ void Arm_Control_Loop(void) {
 
     const float TAU_LIMITS[6] = {1.5f, 3.8f, 1.8f, 1.5f, 1.0f, 0.8f};
 
-    // ---- 拖/锁状态机：开机建立期 + 全臂速度低通 + 迟滞 + 连续确认 + kp 斜坡 ----
-    static float   v_filt[6] = {0};
-    static uint8_t drag_state = 0;
-    static uint16_t lock_cnt  = 0;
-    static uint16_t engage_cnt = 0;    // 开机锁定建立期计数
-    static uint8_t  unlock_streak = 0; // 解锁连续确认计数
-    static float   kp_cur[6]  = {0};
-
-    if (engage_cnt < ENGAGE_CYCLES) {
-        engage_cnt++;                  // 建立期内强制锁定，杜绝开机即掉
-        drag_state = 0;
-    } else {
-        float v_drag = 0.0f;
-        for (int i = 0; i < 6; i++) {
-            v_filt[i] = Math_LowPass(g_arm.v[i], v_filt[i], 0.3f);
-            if (fabsf(v_filt[i]) > v_drag) v_drag = fabsf(v_filt[i]);
-        }
-
-        if (g_drag_mode == 1 || v_drag > g_drag_v_unlock) {
-            if (++unlock_streak >= UNLOCK_STREAK) {   // 持续超阈值 5 拍才解锁
-                drag_state = 1;
-                lock_cnt = 0;
-            }
-        } else {
-            unlock_streak = 0;
-            if (drag_state == 1) {
-                if (v_drag < V_LOCK) {                // 只有全臂真正停稳（<0.04 rad/s）才开始锁止计时
-                    if (++lock_cnt >= LOCK_HOLD_CYCLES) drag_state = 0;
-                } else {
-                    lock_cnt = 0;                     // 速度仍在 V_LOCK~UNLOCK 之间：还在被推/漂移，禁止锁
-                }
-            }
-        }
-    }
-
     for (int i = 0; i < 6; i++) {
+        // ---- 重力前馈：极性 + J2/J3 比例 + 限幅 + 平滑 ----
         float comp_tor = g_arm.tau_gravity[i] * g_grav_dir;
 
         if (i == 1)      comp_tor *= g_scale_j2;
         else if (i == 2) comp_tor *= g_scale_j3;
 
         float clamped = Math_Clamp(comp_tor, -TAU_LIMITS[i], TAU_LIMITS[i]);
-        g_arm.tau_final[i] = Math_Ramp(clamped, g_arm.tau_final[i], 0.08f);
+        g_arm.tau_final[i] = Math_Ramp(clamped, g_arm.tau_final[i], 0.03f);
 
-        if (drag_state) {
-            hold_pos[i] = g_arm.q[i];                       // 目标点跟随手
-            kp_cur[i]   = Math_Ramp(g_drag_kp_drag, kp_cur[i], g_drag_kp_ramp); // 低刚度托底
+        if (g_drag_mode == 1) {
+            // ★ 零刚度重力拖动：Kp=0（无位置弹簧），Kd=小阻尼，Tff=重力托举
+            //   手随便推 → 跟手走；松手 → 重力被抵消处停在原位，不弹回、不锁定
+            g_arm.motors[i].kp    = 0.0f;
+            g_arm.motors[i].kd    = g_drag_kd;
+            g_arm.motors[i].p_des = g_arm.q[i];   // 仅防 MIT 目标跳变（Kp=0，无吸力）
+            g_arm.motors[i].v_des = 0.0f;
         } else {
-            kp_cur[i]   = Math_Ramp(KP_HOLD[i], kp_cur[i], g_drag_kp_ramp); // 柔顺锁紧
+            // 位置锁定保持（备选）：锁在校零/开机姿态，不做拖动跟随
+            g_arm.motors[i].kp    = KP_HOLD[i];
+            g_arm.motors[i].kd    = KD_HOLD[i];
+            g_arm.motors[i].p_des = hold_pos[i];
+            g_arm.motors[i].v_des = 0.0f;
         }
 
-        g_arm.motors[i].kp    = kp_cur[i];
-        g_arm.motors[i].kd    = drag_state ? 0.20f : KD_HOLD[i];
-        g_arm.motors[i].p_des = hold_pos[i];                // 锁止目标
-        g_arm.motors[i].v_des = 0.0f;
-        g_arm.motors[i].t_ff  = g_arm.tau_final[i];         // 重力前馈托底
-
+        g_arm.motors[i].t_ff = g_arm.tau_final[i];   // 重力补偿托底
         DM_J4310_SendMIT(&g_arm.motors[i]);
     }
 }
