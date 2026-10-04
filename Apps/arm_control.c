@@ -14,8 +14,8 @@ volatile float g_grav_dir_j5 = 1.0f;
 volatile float g_scale_j2 = 0.10f;
 volatile float g_scale_j3 = 0.10f;
 volatile float g_drag_kd  = 0.05f;
-// J5 重力补偿总开关（Watch：1=开，0=关）。用于解耦实验：动 J3 时看 J5 是否还跟随。
-volatile uint8_t g_j5_comp_enable = 1;
+// J5 重力补偿总开关（Watch：1=开，0=关）。排查期默认 0：烧录即关 J5，先做解耦实验。
+volatile uint8_t g_j5_comp_enable = 0;
 
 // 每个关节的最终力矩限幅（N·m）。这是软件限幅，不代表机构绝对安全。
 static const float TAU_LIMITS[6] = {1.5f, 3.8f, 1.8f, 1.5f, 1.0f, 0.8f};
