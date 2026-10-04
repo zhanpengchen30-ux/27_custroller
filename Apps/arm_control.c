@@ -6,11 +6,13 @@
 #include "safety.h"
 #include <math.h>
 
-// Keil Watch 可实时调整。必须在支撑机械臂的情况下，从低比例开始标定。
-// 默认 0.10：J2 模型约 3.32 N·m，0.10≈0.33 N·m，适合第一次观察方向；方向对再 0.15→0.20 加
+// Keil Watch 可实时调整。方向按实机标定：J2 实测正确(+)，J3 实测反了(-)，J5 暂默认(+)待测
+volatile float g_grav_dir_j2 = 1.0f;
+volatile float g_grav_dir_j3 = -1.0f;
+volatile float g_grav_dir_j5 = 1.0f;
+// 默认 0.10：J2 模型约 3.3~3.5 N·m，0.10≈0.35 N·m 安全起步；方向对再 0.15→0.20 加
 volatile float g_scale_j2 = 0.10f;
 volatile float g_scale_j3 = 0.10f;
-volatile float g_grav_dir = 1.0f;
 volatile float g_drag_kd  = 0.05f;
 
 // 每个关节的最终力矩限幅（N·m）。这是软件限幅，不代表机构绝对安全。
@@ -64,11 +66,16 @@ void Arm_Control_Loop(void)
 
         g_arm.motors[i].kd = safety_ok ? g_drag_kd : 0.05f;
 
-        float comp_tor = g_arm.tau_gravity[i] * g_grav_dir;
+        // 逐关节方向（Watch 可单独翻）+ 比例；不动 DIRS 电机方向，避免反馈/编码器方向被打乱
+        float comp_tor = g_arm.tau_gravity[i];
         if (i == 1) {
-            comp_tor *= g_scale_j2;
+            comp_tor *= g_grav_dir_j2 * g_scale_j2;
         } else if (i == 2) {
-            comp_tor *= g_scale_j3;
+            comp_tor *= g_grav_dir_j3 * g_scale_j3;
+        } else if (i == 4) {
+            comp_tor *= g_grav_dir_j5;
+        } else {
+            comp_tor = 0.0f;  // J1/J4/J6 模型本就为 0，显式归零防残留
         }
 
         float clamped = Math_Clamp(comp_tor, -TAU_LIMITS[i], TAU_LIMITS[i]);
