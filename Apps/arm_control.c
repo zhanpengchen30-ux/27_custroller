@@ -58,7 +58,7 @@ void Arm_Control_Loop(void)
         g_arm.motors[i].v_des = 0.0f;
         g_arm.motors[i].kp = 0.0f;  // 永久零刚度：不保留位置锁止分支
 
-        if (!g_arm.is_online[i] && !safety_ok) {
+        if (!g_arm.is_online[i] || !safety_ok) {
             g_arm.motors[i].kd = 0.0f;
             g_arm.motors[i].t_ff = 0.0f;
             g_arm.tau_final[i] = 0.0f;
