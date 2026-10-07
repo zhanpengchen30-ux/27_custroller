@@ -3,6 +3,7 @@
 #include "arm_state.h"
 #include "bsp_can2.h"
 #include "cmsis_os.h"
+#include "vofa_debug.h"
 
 // 设为 1 触发一键水平校准
 uint8_t g_arm_zero_cali_cmd = 0;
@@ -10,6 +11,7 @@ uint8_t g_arm_zero_cali_cmd = 0;
 void Task_ArmControl(void const * argument) {
     BSP_CAN2_Init();
     Arm_Control_Init();
+    VOFA_Init();
     g_arm.mode = ARM_SYS_INIT;
 
     // 关键：给电机 2.5 秒的充分开机自检时间！
@@ -32,6 +34,14 @@ void Task_ArmControl(void const * argument) {
         }
 
         Arm_Control_Loop();
+
+        // VOFA 串口 100Hz 发送（33ms * 3 ≈ 100ms）
+        static uint8_t vofa_div = 0;
+        if (++vofa_div >= 3) {
+            vofa_div = 0;
+            VOFA_SendData();
+        }
+
         osDelay(3);
     }
 }
