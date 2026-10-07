@@ -17,7 +17,7 @@ volatile float g_grav_lc_end = 0.08f;
 
 // 独立于编码器 zero_offset 的重力模型角度偏置。
 // 初始值 0 不是自动完成了物理标定；必须根据已知参考姿态校准。
-volatile float g_gravity_zero[6] = {0, 0, 0, 0, 0, 0};
+volatile float g_gravity_zero[6] = {0, -0.01898f, -0.09952f, 0, -0.92711f, 0};
 
 // 角度组合符号（Watch 实时切）：J3 实测 th23=q2-q3（g_sign_q3=-1），J5 待实测。
 volatile float g_sign_q3 = -1.0f;   // th23 = q2 + g_sign_q3 * q3
@@ -44,7 +44,12 @@ void Arm_CalcGravityTorque(float q[6], float tau_g[6])
     tau_g[2] = g_grav_m3 * G_CONST * g_grav_lc3 * c23
              + g_grav_m_end * G_CONST * (g_grav_l3 * c23 + g_grav_lc_end * c235);
 
-    tau_g[3] = 0.0f;
+    // J4 偏心重力矩（第一版实验模型）：
+    // 末端质心相对 J4 轴存在由 J5 产生的偏心量，J4 滚转时偏心重力矩随 sin(q4) 变化。
+    // 方向/相位（sin vs cos、正负号）需实机低力矩验证。
+    tau_g[3] = g_grav_m_end * G_CONST * g_grav_lc_end
+             * sinf(q[4]) * c23 * sinf(q[3]);
+
     tau_g[4] = g_grav_m_end * G_CONST * g_grav_lc_end * c235;
     tau_g[5] = 0.0f;
 }

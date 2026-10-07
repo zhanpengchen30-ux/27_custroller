@@ -9,10 +9,12 @@
 // Keil Watch 可实时调整。方向按实机标定：J2 实测正确(+)，J3 实测反了(-)，J5 暂默认(+)待测
 volatile float g_grav_dir_j2 = 1.0f;
 volatile float g_grav_dir_j3 = -1.0f;
+volatile float g_grav_dir_j4 = 1.0f;
 volatile float g_grav_dir_j5 = 1.0f;
 // 默认 0.10：J2 模型约 3.3~3.5 N·m，0.10≈0.35 N·m 安全起步；方向对再 0.15→0.20 加
-volatile float g_scale_j2 = 0.10f;
-volatile float g_scale_j3 = 0.10f;
+volatile float g_scale_j2 = 0.90f;
+volatile float g_scale_j3 = 0.90f;
+volatile float g_scale_j4 = 0.30f;
 volatile float g_drag_kd  = 0.05f;
 // J5 重力补偿总开关（Watch：1=开，0=关）。排查期默认 0：烧录即关 J5，先做解耦实验。
 volatile uint8_t g_j5_comp_enable = 0;
@@ -81,10 +83,12 @@ void Arm_Control_Loop(void)
             } else {
                 comp_tor *= g_grav_dir_j3 * g_scale_j3;
             }
+        } else if (i == 3) {
+            comp_tor *= g_grav_dir_j4 * g_scale_j4;
         } else if (i == 4) {
             comp_tor = g_j5_comp_enable ? comp_tor * g_grav_dir_j5 : 0.0f;
         } else {
-            comp_tor = 0.0f;  // J1/J4/J6 模型本就为 0，显式归零防残留
+            comp_tor = 0.0f;  // J1/J6 模型本就为 0，显式归零防残留
         }
 
         float clamped = Math_Clamp(comp_tor, -TAU_LIMITS[i], TAU_LIMITS[i]);
