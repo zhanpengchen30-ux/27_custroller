@@ -41,6 +41,12 @@ void Arm_CalcGravityTorque(float q[6], float tau_g[6])
              + g_grav_m_end * G_CONST * (g_grav_l2 * c2 + g_grav_l3 * c23
                                          + g_grav_lc_end * c235);
 
+    // 大臂在前半球（th2 在 -90°~+90°）时，重力一定向下拉 J2，
+    // 模型不能因 th23 钝角 cos 变负而倒扣成负力矩（那会变成电机往下压臂）。
+    if (c2 > 0.0f && tau_g[1] < 0.0f) {
+        tau_g[1] = 0.0f;
+    }
+
     tau_g[2] = g_grav_m3 * G_CONST * g_grav_lc3 * c23
              + g_grav_m_end * G_CONST * (g_grav_l3 * c23 + g_grav_lc_end * c235);
 
