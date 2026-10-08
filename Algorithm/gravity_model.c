@@ -15,7 +15,7 @@ volatile float g_grav_m_end  = 0.45f;
 volatile float g_grav_lc_end = 0.08f;
 
 volatile float g_gravity_zero[6] = {0, 0, 0, 0, 0, 0};
-volatile float g_sign_q3 = 1.0f;
+volatile float g_sign_q3 = -1.0f;
 
 void Arm_CalcGravityTorque(float q[6], float tau_g[6])
 {
@@ -36,7 +36,7 @@ void Arm_CalcGravityTorque(float q[6], float tau_g[6])
         g_grav_m3 * G_CONST * g_grav_lc3 * c23
       + g_grav_m_end * G_CONST * g_grav_l3 * c23;
 
-    tau_g[3] = 0.0f;
+    tau_g[3] = g_grav_m_end * G_CONST * g_grav_lc_end * sinf(q[4]) * c23 * sinf(q[3]);
     tau_g[4] = 0.0f;
     tau_g[5] = 0.0f;
 }
