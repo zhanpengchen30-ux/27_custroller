@@ -11,8 +11,8 @@ volatile float g_grav_dir_j2 = 1.0f;
 volatile float g_grav_dir_j3 = -1.0f;
 volatile float g_grav_dir_j5 = 1.0f;
 // 默认 0.10：J2 模型约 3.3~3.5 N·m，0.10≈0.35 N·m 安全起步；方向对再 0.15→0.20 加
-volatile float g_scale_j2 = 0.10f;
-volatile float g_scale_j3 = 0.10f;
+volatile float g_scale_j2 = 0.30f;
+volatile float g_scale_j3 = 0.30f;
 volatile float g_drag_kd  = 0.05f;
 // J5 重力补偿总开关（Watch：1=开，0=关）。排查期默认 0：烧录即关 J5，先做解耦实验。
 volatile uint8_t g_j5_comp_enable = 0;
