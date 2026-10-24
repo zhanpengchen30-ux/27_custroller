@@ -4,6 +4,9 @@
 
 extern CAN_HandleTypeDef hcan2; // 只使用 hcan2
 
+volatile uint32_t can2_rx_frame_cnt = 0;
+volatile uint32_t can2_rx_arm_id_cnt = 0;
+
 void BSP_CAN2_Init(void) {
     // STM32F4 的 CAN 过滤器物理寄存器挂在 CAN1 总线上，必须开启 CAN1 和 CAN2 时钟
     __HAL_RCC_CAN1_CLK_ENABLE();
@@ -59,8 +62,15 @@ void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
         CAN_RxHeaderTypeDef rx_header;
         uint8_t rx_data[8];
         if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rx_header, rx_data) == HAL_OK) {
+            can2_rx_frame_cnt++;
             // 通过 Master ID (0x17 ~ 0x22) 匹配 6 个电机
-            DM_J4310_DecodeByMasterId(g_arm.motors, 6, rx_header.StdId, rx_data);
+            for (int i = 0; i < 6; i++) {
+                if (g_arm.motors[i].master_id == rx_header.StdId) {
+                    can2_rx_arm_id_cnt++;
+                    DM_J4310_DecodeByMasterId(g_arm.motors, 6, rx_header.StdId, rx_data);
+                    break;
+                }
+            }
         }
     }
 }

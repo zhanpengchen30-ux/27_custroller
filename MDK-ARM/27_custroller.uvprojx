@@ -628,6 +628,16 @@
               <FileType>1</FileType>
               <FilePath>..\Apps\safety.c</FilePath>
             </File>
+            <File>
+              <FileName>vofa_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Apps\vofa_debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>zigbee.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Apps\zigbee.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -637,11 +647,6 @@
               <FileName>bsp_can2.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\Bsp\bsp_can2.c</FilePath>
-            </File>
-            <File>
-              <FileName>bsp_usart6.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\Bsp\bsp_usart6.c</FilePath>
             </File>
           </Files>
         </Group>

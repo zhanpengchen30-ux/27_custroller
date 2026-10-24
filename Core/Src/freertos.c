@@ -115,7 +115,10 @@ void MX_FREERTOS_Init(void) {
   ControlTaskHandle = osThreadCreate(osThread(ControlTask), NULL);
 
   /* definition and creation of CommTask */
-  osThreadDef(CommTask, StartCommTask, osPriorityNormal, 0, 256);
+  /* 512 words = 2KB：VOFA_SendData 里有 snprintf(%.3f x12) + 39 个实参，
+     原来的 256 words (1KB) 会在浮点格式化时踩爆栈，进而破坏相邻的
+     ControlTask，表现就是电机突然全部失能（红灯）。 */
+  osThreadDef(CommTask, StartCommTask, osPriorityNormal, 0, 512);
   CommTaskHandle = osThreadCreate(osThread(CommTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -174,5 +177,21 @@ void StartCommTask(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+/**
+  * @brief  栈溢出钩子（configCHECK_FOR_STACK_OVERFLOW == 2）。
+  *         走到这里说明某个任务的栈已经踩穿了。这里直接停住等调试器接管，
+  *         比让溢出静默改坏 heap_4 里相邻任务的栈 / TCB 安全得多。
+  *         调试时在 Watch 里看 prvOverflowTaskName 就知道是哪个任务。
+  */
+volatile const char *prvOverflowTaskName = NULL;
 
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
+{
+  (void)xTask;
+  prvOverflowTaskName = pcTaskName;
+  taskDISABLE_INTERRUPTS();
+  for (;;)
+  {
+  }
+}
 /* USER CODE END Application */

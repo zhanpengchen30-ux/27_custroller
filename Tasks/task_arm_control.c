@@ -3,6 +3,8 @@
 #include "arm_state.h"
 #include "bsp_can2.h"
 #include "cmsis_os.h"
+#include "vofa_debug.h"
+#include "zigbee.h"
 
 // 设为 1 触发一键水平校准
 uint8_t g_arm_zero_cali_cmd = 0;
@@ -25,13 +27,25 @@ void Task_ArmControl(void const * argument) {
     // 此时正常情况下，电机的红灯会瞬间刷刷刷全变成【绿灯】！
     g_arm.mode = ARM_SYS_ZERO_FORCE;
 
-    for (;;) {
+   uint32_t zigbee_tick = HAL_GetTick();
+
+   for (;;) {
         if (g_arm_zero_cali_cmd == 1) {
             Arm_Calibrate_Zero();
             g_arm_zero_cali_cmd = 0;
         }
 
+        uint32_t loop_start = HAL_GetTick();
         Arm_Control_Loop();
-        osDelay(3);
+
+        // 固定间隔发帧；任务以 3ms 周期运行，因此正常频率约 100Hz。
+        uint32_t send_now = HAL_GetTick();
+        if ((int32_t)(send_now - zigbee_tick) >= 10) {
+            zigbee_tick += ((send_now - zigbee_tick) / 10u) * 10u;
+            Zigbee_SendJoints();
+        }
+
+        uint32_t elapsed = HAL_GetTick() - loop_start;
+        if (elapsed < 3) osDelay(3 - elapsed);
     }
 }
