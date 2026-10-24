@@ -19,7 +19,23 @@ volatile uint32_t custom_ctrl_rx_byte_cnt = 0;
 volatile uint32_t custom_ctrl_valid_frame_cnt = 0;
 volatile uint8_t custom_ctrl_rx_raw[15] = {0};
 volatile uint32_t zb_tx_gap_max_ms = 0;
-volatile uint8_t zigbee_tx_buf[16] = {0};
+volatile uint8_t zigbee_tx_buf[18] = {0};
+
+/* 帧格式（17 字节）：AA | q0..q5 (12B) | active | seq | crc8 | 55
+   crc8 = CRC-8/ATM(poly 0x07)，覆盖 buf[0..14]。
+   ⚠ 从手 27_rm_arm/Modules/arm.c 里的 Zigbee_Crc8 必须与此完全一致。 */
+static uint8_t zigbee_tx_seq = 0;
+
+static uint8_t Zigbee_Crc8(const uint8_t *d, uint8_t n)
+{
+    uint8_t crc = 0x00u;
+    for (uint8_t i = 0; i < n; i++) {
+        crc ^= d[i];
+        for (uint8_t b = 0; b < 8u; b++)
+            crc = (crc & 0x80u) ? (uint8_t)((crc << 1) ^ 0x07u) : (uint8_t)(crc << 1);
+    }
+    return crc;
+}
 static uint32_t last_tx_tick = 0;
 
 void Zigbee_Init(void)
@@ -43,7 +59,7 @@ void Zigbee_Send(uint8_t *data, uint8_t len)
         zigbee_tx_err_cnt++;
 }
 
-/* 发送主手自己的 6 个关节角给从手（15字节：帧头 + 6xint16角度 + active + 帧尾）。
+/* 发送主手自己的 6 个关节角给从手（17字节：AA + 6xint16角度 + active + seq + crc8 + 55）。
    本板是主手（自定义控制器），发的是 g_arm.q —— 即电机实测、已扣 zero_offset、
    已按 dir 定向后的关节角，不是收到的外部数据。 */
 
@@ -84,8 +100,10 @@ void Zigbee_SendJoints(void)
     }
 
     zigbee_tx_buf[idx++] = active;
+    zigbee_tx_buf[idx++] = zigbee_tx_seq++;                              /* 序号：丢包可数 */
+    zigbee_tx_buf[idx++] = Zigbee_Crc8((const uint8_t *)zigbee_tx_buf, idx); /* 校验 [0..14] */
 
-    zigbee_tx_buf[idx++] = 0x55;  // 帧尾
+    zigbee_tx_buf[idx++] = 0x55;  // 帧尾（共 17 字节）
 
     tx_busy = 1;
     if (HAL_UART_Transmit_IT(&huart6, (uint8_t *)zigbee_tx_buf, idx) != HAL_OK)
