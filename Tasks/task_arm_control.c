@@ -38,10 +38,10 @@ void Task_ArmControl(void const * argument) {
         uint32_t loop_start = HAL_GetTick();
         Arm_Control_Loop();
 
-        // 固定间隔发帧；任务以 3ms 周期运行，因此正常频率约 100Hz。
+        // 固定间隔发帧（周期见 zigbee.h 的 ZIGBEE_TX_PERIOD_MS，默认 10ms ≈ 100Hz）
         uint32_t send_now = HAL_GetTick();
-        if ((int32_t)(send_now - zigbee_tick) >= 10) {
-            zigbee_tick += ((send_now - zigbee_tick) / 10u) * 10u;
+        if ((int32_t)(send_now - zigbee_tick) >= ZIGBEE_TX_PERIOD_MS) {
+            zigbee_tick += ((send_now - zigbee_tick) / ZIGBEE_TX_PERIOD_MS) * ZIGBEE_TX_PERIOD_MS;
             Zigbee_SendJoints();
         }
 
