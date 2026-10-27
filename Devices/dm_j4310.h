@@ -43,7 +43,13 @@ typedef struct {
 void DM_J4310_Init(DM_J4310_t *motor, uint16_t can_id, uint16_t master_id, int8_t dir);
 void DM_J4310_Enable(uint16_t can_id);
 void DM_J4310_Disable(uint16_t can_id);
+void DM_J4310_ClearError(uint16_t can_id);   /* 清锁存错误（0xFB），掉线自愈用 */
 void DM_J4310_SendMIT(DM_J4310_t *motor);
 void DM_J4310_DecodeByMasterId(DM_J4310_t *motors, uint8_t motor_num, uint32_t std_id, uint8_t *rx_data);
+
+/* ---- 调试：J2 电机反馈帧原始捕捉（力矩解码排查用） ---- */
+extern volatile uint8_t  g_dbg_m1_frame[8]; /* 最后一帧原始字节 D0..D7 */
+extern volatile uint16_t g_dbg_m1_traw;     /* 力矩 12bit 原始码 */
+extern volatile float    g_dbg_m1_tor7;     /* 按 ±7 量程解出的力矩备选值 */
 
 #endif

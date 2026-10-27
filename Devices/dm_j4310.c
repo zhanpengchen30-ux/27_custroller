@@ -1,6 +1,14 @@
 #include "dm_j4310.h"
 #include "bsp_can2.h"
 
+/* ---- J2 电机反馈帧原始字节捕捉（调试力矩解码用） ----
+   现象：kp 静态托臂时电机实际出力 ~3.2N·m，但解码出的 tor≈0（pos/vel 都正常）。
+   这三个变量把 J2(master_id=0x18) 最后一帧的原始 8 字节和力矩原始码冻下来，
+   用来判断是字段错位还是量程不对。不需要时留着不管，开销可忽略。 */
+volatile uint8_t  g_dbg_m1_frame[8] = {0};
+volatile uint16_t g_dbg_m1_traw     = 0;      /* 12bit 力矩原始码 0..4095 */
+volatile float    g_dbg_m1_tor7     = 0.0f;   /* 按 ±7 N·m 量程解码的备选值 */
+
 static int float_to_uint(float x, float x_min, float x_max, int bits) {
     float span = x_max - x_min;
     float offset = x_min;
@@ -40,6 +48,16 @@ void DM_J4310_Enable(uint16_t can_id) {
 
 void DM_J4310_Disable(uint16_t can_id) {
     uint8_t data[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD};
+    BSP_CAN2_SendMsg(can_id, data, 8);
+}
+
+/* 清除锁存错误（0xFB）。
+   达妙电机有错误锁存：欠压 / 过流 / 过温 / 编码器一旦报过，错误位会一直挂着，
+   此时无论发多少次使能帧都不会变绿，而且电机不再回复控制帧 —— 表现就是
+   is_online 一直是 0、安全逻辑判掉线、整条臂零力矩，只能断电重启。
+   主手原来没有这个函数，这是"使能不了"最常见的原因。 */
+void DM_J4310_ClearError(uint16_t can_id) {
+    uint8_t data[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFB};
     BSP_CAN2_SendMsg(can_id, data, 8);
 }
 
@@ -83,6 +101,12 @@ void DM_J4310_DecodeByMasterId(DM_J4310_t *motors, uint8_t motor_num, uint32_t s
             motors[i].t_mos   = (float)rx_data[6];
             motors[i].t_rotor = (float)rx_data[7];
             motors[i].last_update_time = HAL_GetTick();
+
+            if (i == 1) {   /* J2：抓原始帧 + 力矩备选量程解码 */
+                for (int b = 0; b < 8; b++) g_dbg_m1_frame[b] = rx_data[b];
+                g_dbg_m1_traw = t_raw;
+                g_dbg_m1_tor7 = uint_to_float(t_raw, -7.0f, 7.0f, 12);
+            }
             break;
         }
     }
