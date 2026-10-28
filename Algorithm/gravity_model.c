@@ -40,6 +40,11 @@ volatile float g_sign_q5 = 1.0f;     /* 段C 相对仰角  ← TODO 待单独验
 /* 整条臂的总闸：补偿力矩整体方向反了（越补越往下掉）就改成 -1.0f */
 volatile float g_grav_sign = 1.0f;
 
+/* J4 偏心补偿增益：0 = 关闭（默认，行为与改动前完全一致）
+   实机上在 Watch 里试 +1.0 / -1.0，看哪个方向能让 J4 停住。
+   若需要 |gain| > 2 才停得住，说明末端实际比 mC 模型重，那要回去改 mC。 */
+volatile float g_j4_gain = 0.0f;
+
 /* 重力补偿总开关：默认 0 = 关。
    关的时候模型照算（tau_gravity 每拍照常更新，方便对照姿态），
    但 t_ff 恒为 0，臂只剩 kd 阻尼，可以随便拖。调好了再置 1。 */
@@ -134,14 +139,23 @@ void Arm_CalcGravityTorque(float q[6], float tau_g[6])
     /* J5：只扛 段C */
     tau_g[4] = g_grav_sign * G_CONST * g_segC_m * g_segC_lc * cC;
 
-    /* J1 是竖直偏航轴，J4/J6 是滚转轴且与连杆共线，一阶重力矩都是 0。
-       J4 的二阶项（J5 弯开后段C 质心离轴产生力矩）先不建，等 J2/J3/J5 调平
-       之后再补，形式大致是  mC·g·lcC·sin(q5)·sin/cos(q4)·cos(θB)，
-       具体取 sin 还是 cos 取决于 J5 转轴在前臂零滚转时是朝面内还是面外，
-       这一点现有旧代码给不出可信答案（旧版的 sin(q4) 本身就可能是错的，
-       否则不会需要 g_scale_j4=0.30 去压），到时候用实验定。 */
     tau_g[0] = 0.0f;
-    tau_g[3] = 0.0f;
+
+    /* J4：绕前臂的滚转轴。理想情况段C 质心在轴上、不受重力矩；
+       但末端有偏心 —— J5 弯开后质心离轴 lcC·sin(q5)，J4 再滚过 q4，
+       这部分偏置就转出臂平面，重力相对前臂轴产生力矩。
+
+       几何推导（J5 转轴垂直于臂平面，用户已确认）：
+           r_perp = lcC·sin(q5)·[cos(q4)·n2 + sin(q4)·n1]     n1 面外、n2 面内
+           τ_J4 = (r_perp × Fg)·f = mC·g·lcC·sin(q5)·cos(θB)·sin(q4)
+       q4 = 0 时恒为 0（偏置在平面内），与"滚到某个角度才掉"的现象吻合。
+       该形式与旧工程 commit c20b33a 一致，可交叉印证。
+
+       q[4] 是 J5 的关节角（不是 θC）；q[3] 是 J4 的关节角。
+       增益为 0 时整项关闭，与改动前行为完全相同。 */
+    tau_g[3] = g_grav_sign * G_CONST * g_segC_m * g_segC_lc * g_j4_gain
+             * sinf(q[4]) * cB * sinf(q[3]);
+
     tau_g[5] = 0.0f;
 }
 

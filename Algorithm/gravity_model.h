@@ -30,6 +30,9 @@ extern volatile float g_gravity_zero[6];
    单个关节的符号由 gravity_model.c 里的 g_sign_q* 负责，这里只是最后一道总闸。 */
 extern volatile float g_grav_sign;
 
+/* J4 偏心重力补偿增益：0=关（默认），Watch 里试 +1.0 / -1.0 定方向 */
+extern volatile float g_j4_gain;
+
 /* 重力补偿总开关：
      0 = 只算不下发。tau_gravity 仍然每拍更新（可以照常观察），但 t_ff 恒为 0，
          臂退化成纯阻尼，可以自由拖动。调符号 / 找零点 / 量质心时必须置 0。
