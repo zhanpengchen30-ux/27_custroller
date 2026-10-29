@@ -45,6 +45,13 @@
 
 /* USER CODE BEGIN Includes */
 /* Section where include file can be added */
+
+/* ★ 放在 USER CODE 段里，CubeMX 生成时会原样保留。
+   （放在 CubeMX 管辖的配置区，每次 GENERATE CODE 都会被删掉。）
+   2 = 切换任务时同时校验栈边界和栈内容填充图案。
+   CommTask 里跑 snprintf(%.3f...) 需要近 900 字节栈，打开后溢出会停在
+   vApplicationStackOverflowHook，而不是静默踩坏相邻的 ControlTask。 */
+#define configCHECK_FOR_STACK_OVERFLOW           2
 /* USER CODE END Includes */
 
 /* Ensure definitions are only used by the compiler, and not by the assembler. */
@@ -65,10 +72,6 @@
 #define configMAX_PRIORITIES                     ( 7 )
 #define configMINIMAL_STACK_SIZE                 ((uint16_t)128)
 #define configTOTAL_HEAP_SIZE                    ((size_t)15360)
-/* 2 = 切换任务时同时校验栈边界和栈内容填充图案。
-   CommTask 里跑 snprintf(%.3f...) 需要近 900 字节栈，
-   打开后溢出会直接停在 vApplicationStackOverflowHook，而不是静默踩坏相邻任务。 */
-#define configCHECK_FOR_STACK_OVERFLOW           2
 #define configMAX_TASK_NAME_LEN                  ( 16 )
 #define configUSE_16_BIT_TICKS                   0
 #define configUSE_MUTEXES                        1
