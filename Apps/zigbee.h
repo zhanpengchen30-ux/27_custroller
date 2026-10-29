@@ -13,10 +13,6 @@ extern volatile uint32_t custom_ctrl_valid_frame_cnt;
 extern volatile uint8_t custom_ctrl_rx_raw[15];
 extern volatile uint32_t zb_tx_gap_max_ms;
 
-/* 夹爪命令：0 = 开，1 = 合。由主手 PE0 的按键经 30ms 消抖后写入，
-   随 Zigbee 帧的第 14 字节一起发出去。可在 Watch 里观察。 */
-extern volatile uint8_t g_grip_cmd;
-
 /* 发帧周期（ms）。10 = 100Hz（默认）；20 = 50Hz，可显著降低无线链路负载。
    注意：改这里要同步从手 27_rm_arm 的 Modules/arm.c 里 ARM_INTERP_TICKS
    —— 它把一帧的增量摊到 5 个 2ms tick（正好 10ms），改成 50Hz 时应同步改 10。 */

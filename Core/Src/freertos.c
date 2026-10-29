@@ -117,7 +117,8 @@ void MX_FREERTOS_Init(void) {
   /* definition and creation of CommTask */
   /* 512 words = 2KB：VOFA_SendData 里有 snprintf(%.3f x12) + 39 个实参，
      原来的 256 words (1KB) 会在浮点格式化时踩爆栈，进而破坏相邻的
-     ControlTask，表现就是电机突然全部失能（红灯）。 */
+     ControlTask，表现就是电机突然全部失能（红灯）。
+     ⚠ CubeMX 重新生成会改回 256，每次生成后都要检查。 */
   osThreadDef(CommTask, StartCommTask, osPriorityNormal, 0, 512);
   CommTaskHandle = osThreadCreate(osThread(CommTask), NULL);
 
