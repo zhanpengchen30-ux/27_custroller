@@ -57,6 +57,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define GRIP_BTN_Pin GPIO_PIN_14
+#define GRIP_BTN_GPIO_Port GPIOD
 
 /* USER CODE BEGIN Private defines */
 
