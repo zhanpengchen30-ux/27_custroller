@@ -19,12 +19,43 @@ volatile uint32_t custom_ctrl_rx_byte_cnt = 0;
 volatile uint32_t custom_ctrl_valid_frame_cnt = 0;
 volatile uint8_t custom_ctrl_rx_raw[15] = {0};
 volatile uint32_t zb_tx_gap_max_ms = 0;
-volatile uint8_t zigbee_tx_buf[18] = {0};
+volatile uint8_t zigbee_tx_buf[19] = {0};
 
-/* 帧格式（17 字节）：AA | q0..q5 (12B) | active | seq | crc8 | 55
-   crc8 = CRC-8/ATM(poly 0x07)，覆盖 buf[0..14]。
-   ⚠ 从手 27_rm_arm/Modules/arm.c 里的 Zigbee_Crc8 必须与此完全一致。 */
+/* 帧格式（18 字节）：AA | q0..q5 (12B) | active | grip | seq | crc8 | 55
+   crc8 = CRC-8/ATM(poly 0x07)，覆盖 buf[0..15]。
+   ⚠ 从手 27_rm_arm/Modules/arm.c 里的 Zigbee_Crc8 与 ZIGBEE_FRAME_LEN 必须与此完全一致。 */
 static uint8_t zigbee_tx_seq = 0;
+
+/* ===== 夹爪按键（2026-10-29 新增）=====
+ * 硬件：主手 PE0，内部下拉，按键另一端接 3V3 —— 按下读到 1 = 夹爪闭合。
+ *       选下拉而不是上拉：断线时读 0（夹爪张开），比读 1（误闭合）安全。
+ * 消抖：Zigbee_SendJoints 每 10ms 调一次，连续 3 次一致才认（30ms）。
+ * 引脚：CubeMX 里把 PE0 命名为 GRIP_BTN、模式 GPIO_Input、下拉。
+ *       没配也能编译（下面的 fallback 宏兜底），只是永远读到 0 = 夹爪张开。 */
+#ifndef GRIP_BTN_Pin
+#define GRIP_BTN_Pin        GPIO_PIN_0
+#define GRIP_BTN_GPIO_Port  GPIOE
+#endif
+
+volatile uint8_t g_grip_cmd = 0;      /* 0=开  1=合（给 Watch 看） */
+static uint8_t s_grip_cnt = 0;
+static uint8_t s_grip_raw_last = 0;
+
+static void Gripper_Scan(void)
+{
+    uint8_t raw = (HAL_GPIO_ReadPin(GRIP_BTN_GPIO_Port, GRIP_BTN_Pin) == GPIO_PIN_SET) ? 1u : 0u;
+
+    if (raw == s_grip_raw_last)
+    {
+        if (s_grip_cnt < 3u) s_grip_cnt++;
+        if (s_grip_cnt >= 3u) g_grip_cmd = raw;   /* 稳定 30ms 才生效 */
+    }
+    else
+    {
+        s_grip_raw_last = raw;
+        s_grip_cnt = 0;
+    }
+}
 
 static uint8_t Zigbee_Crc8(const uint8_t *d, uint8_t n)
 {
@@ -65,6 +96,8 @@ void Zigbee_Send(uint8_t *data, uint8_t len)
 
 void Zigbee_SendJoints(void)
 {
+    Gripper_Scan();                  /* 10ms 一次，30ms 消抖 */
+
     uint32_t now = HAL_GetTick();
     uint32_t gap = now - last_tx_tick;
     if (zigbee_send_cnt > 0 && gap > zb_tx_gap_max_ms)
@@ -100,10 +133,11 @@ void Zigbee_SendJoints(void)
     }
 
     zigbee_tx_buf[idx++] = active;
+    zigbee_tx_buf[idx++] = g_grip_cmd;                                   /* 夹爪：0=开 1=合 */
     zigbee_tx_buf[idx++] = zigbee_tx_seq++;                              /* 序号：丢包可数 */
-    zigbee_tx_buf[idx++] = Zigbee_Crc8((const uint8_t *)zigbee_tx_buf, idx); /* 校验 [0..14] */
+    zigbee_tx_buf[idx++] = Zigbee_Crc8((const uint8_t *)zigbee_tx_buf, idx); /* 校验 [0..15] */
 
-    zigbee_tx_buf[idx++] = 0x55;  // 帧尾（共 17 字节）
+    zigbee_tx_buf[idx++] = 0x55;  // 帧尾（共 18 字节）
 
     tx_busy = 1;
     if (HAL_UART_Transmit_IT(&huart6, (uint8_t *)zigbee_tx_buf, idx) != HAL_OK)
