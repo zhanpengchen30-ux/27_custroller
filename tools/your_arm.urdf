@@ -1,0 +1,132 @@
+<?xml version="1.0"?>
+<!--
+  27_custroller 主手 —— 静态重力辨识用的最小 URDF
+  ================================================
+  只保留动力学必需的信息：关节位置、转轴、连杆质量与质心。
+  不含 mesh / 惯量（静态重力辨识用不到），所以文件只有几十行。
+
+  段划分（与 gravity_model.c 一致）：
+      段A = J2轴 -> J3轴      LA = 0.150
+      段B = J3轴 -> J5轴      LB = 0.150 （J4 与 J5 同轴心，只差转轴方向）
+      段C = J5轴 -> 末端      LC = 0.082 （J6 在末端，绕末端轴滚转）
+
+  ★ 待确认项（用 SolidWorks 质量属性核对后改这里）：
+      1. 三段质量 segA_m / segB_m / segC_m
+      2. 三段质心距近端关节的距离 segA_lc / segB_lc / segC_lc
+      （当前值来自用户口头称重 + L/2 估计，不是实测）
+
+  ★ 符号约定：
+      关节正方向按 URDF 右手定则（绕 axis 正向旋转）。
+      如果和固件里的 g_sign_q* 对不上，改 axis 的符号，不要改角度。
+-->
+<robot name="custroller_master">
+
+  <link name="base_link"/>
+
+  <!-- ============ J1：竖直偏航 ============ -->
+  <joint name="joint1" type="revolute">
+    <parent link="base_link"/>
+    <child link="link1"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.14" upper="3.14" effort="10" velocity="10"/>
+  </joint>
+  <link name="link1">
+    <inertial>
+      <mass value="0.001"/>
+      <origin xyz="0 0 0"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <!-- ============ J2：抬大臂（段A 起点）============ -->
+  <joint name="joint2" type="revolute">
+    <parent link="link1"/>
+    <child link="link2"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 -1 0"/>
+    <limit lower="-2.8" upper="2.8" effort="10" velocity="10"/>
+  </joint>
+  <!-- 段A：质量 待实测，质心在近端关节外 lcA 处 -->
+  <link name="link2">
+    <inertial>
+      <mass value="0.354"/>
+      <origin xyz="0.075 0 0"/>
+      <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
+    </inertial>
+  </link>
+
+  <!-- ============ J3：弯前臂（段B 起点）============ -->
+  <joint name="joint3" type="revolute">
+    <parent link="link2"/>
+    <child link="link3"/>
+    <origin xyz="0.150 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.8" upper="2.8" effort="10" velocity="10"/>
+  </joint>
+  <!-- 段B：质量 待实测 -->
+  <link name="link3">
+    <inertial>
+      <mass value="0.811"/>
+      <origin xyz="0.075 0 0"/>
+      <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
+    </inertial>
+  </link>
+
+  <!-- ============ J4：前臂滚转（与 J5 同轴心）============ -->
+  <joint name="joint4" type="revolute">
+    <parent link="link3"/>
+    <child link="link4"/>
+    <origin xyz="0.150 0 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.14" upper="3.14" effort="10" velocity="10"/>
+  </joint>
+  <link name="link4">
+    <inertial>
+      <mass value="0.001"/>
+      <origin xyz="0 0 0"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <!-- ============ J5：腕部俯仰（段C 起点）============ -->
+  <joint name="joint5" type="revolute">
+    <parent link="link4"/>
+    <child link="link5"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.8" upper="2.8" effort="10" velocity="10"/>
+  </joint>
+  <!-- 段C：质量 待实测 -->
+  <link name="link5">
+    <inertial>
+      <mass value="0.445"/>
+      <origin xyz="0.041 0 0"/>
+      <inertia ixx="1e-5" ixy="0" ixz="0" iyy="1e-5" iyz="0" izz="1e-5"/>
+    </inertial>
+  </link>
+
+  <!-- ============ J6：末端滚转（在末端，不产生重力矩）============ -->
+  <joint name="joint6" type="revolute">
+    <parent link="link5"/>
+    <child link="link6"/>
+    <origin xyz="0.082 0 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.14" upper="3.14" effort="10" velocity="10"/>
+  </joint>
+  <link name="link6">
+    <inertial>
+      <mass value="0.001"/>
+      <origin xyz="0 0 0"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+    </inertial>
+  </link>
+
+  <joint name="tcp_fixed" type="fixed">
+    <parent link="link6"/>
+    <child link="tcp"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+  <link name="tcp"/>
+
+</robot>
