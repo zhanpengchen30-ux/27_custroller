@@ -27,6 +27,25 @@
 /* USER CODE BEGIN Includes */
 #include "task_arm_control.h"
 #include "task_telemetry.h"
+
+/* ★ 防 CubeMX 覆盖（2026-10-29 加）
+ *
+ * configCHECK_FOR_STACK_OVERFLOW 在 .ioc 里没有对应条目，所以每次在 CubeMX 里
+ * "GENERATE CODE"，它都会被从 FreeRTOSConfig.h 里删掉。删掉之后栈溢出不再被
+ * 捕获，CommTask 里 snprintf(%.3f x12) 需要的近 900 字节一旦超出 1KB 栈，
+ * 就会静默踩坏相邻的 ControlTask —— 现象是"电机全部失能、机械臂完全不动"，
+ * 而且没有任何报错，极难定位。
+ *
+ * 这里让它在编译期就失败，比等上板才发现强得多。
+ * Compile-time guard so a CubeMX regeneration can never silently ship a
+ * build with stack-overflow checking disabled.
+ *
+ * 顺带：CommTask 的栈已经写进 .ioc（512 words），CubeMX 会正确生成。
+ * 这一条 .ioc 带不出来，只能靠这个断言守。 */
+#if (configCHECK_FOR_STACK_OVERFLOW < 2)
+#error "CubeMX 删掉了 configCHECK_FOR_STACK_OVERFLOW！请到 Core/Inc/FreeRTOSConfig.h 恢复: #define configCHECK_FOR_STACK_OVERFLOW 2"
+#endif
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
