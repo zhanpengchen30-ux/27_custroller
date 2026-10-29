@@ -134,11 +134,6 @@ void MX_FREERTOS_Init(void) {
   ControlTaskHandle = osThreadCreate(osThread(ControlTask), NULL);
 
   /* definition and creation of CommTask */
-  /* 512 words = 2KB：VOFA_SendData 里有 snprintf(%.3f x12) + 39 个实参，
-     256 words (1KB) 会在浮点格式化时踩爆栈，破坏相邻的 ControlTask，
-     表现就是电机突然全部失能（红灯）。
-     ⚠ 这个值由 CubeMX 的 Project Manager -> FREERTOS -> Tasks 决定，
-       界面上 CommTask 的 Stack Size 必须填 512，否则每次生成都会退回 256。 */
   osThreadDef(CommTask, StartCommTask, osPriorityNormal, 0, 512);
   CommTaskHandle = osThreadCreate(osThread(CommTask), NULL);
 
