@@ -45,10 +45,16 @@ volatile float g_grav_sign = 1.0f;
    若需要 |gain| > 2 才停得住，说明末端实际比 mC 模型重，那要回去改 mC。 */
 volatile float g_j4_gain = 0.0f;
 
-/* 重力补偿总开关：默认 0 = 关。
-   关的时候模型照算（tau_gravity 每拍照常更新，方便对照姿态），
-   但 t_ff 恒为 0，臂只剩 kd 阻尼，可以随便拖。调好了再置 1。 */
-volatile uint8_t g_grav_enable = 0;
+/* 重力补偿总开关  0 = 关（t_ff 恒 0，臂只剩 kd 阻尼，可随便拖但会掉）
+ *               1 = 开（正常重力补偿）
+ *
+ * 2026-10-29 改为默认 1：用户要求上电即生效，不用每次在 Watch 里手动打开。
+ * 关掉时模型照算（tau_gravity 每拍照常更新，方便对照姿态），只是不下发。
+ * 安全性由别处兜底：
+ *   · 控制环要等 2.5s 电机自检完才开始跑
+ *   · 掉线/急停时 g_arm.mode 不是 ZERO_FORCE，安全逻辑会把 kd 降到 0.05
+ * 想临时关掉（比如标定、或怀疑补偿顶手），Watch 里写 0 即可。 */
+volatile uint8_t g_grav_enable = 1;
 
 /* 模型"认为"的三段仰角（度），仅供 Watch 与实际姿态对照 */
 volatile float g_thA_deg = 0.0f;
