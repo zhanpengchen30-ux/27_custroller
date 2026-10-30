@@ -13,9 +13,14 @@ extern volatile uint32_t custom_ctrl_valid_frame_cnt;
 extern volatile uint8_t custom_ctrl_rx_raw[15];
 extern volatile uint32_t zb_tx_gap_max_ms;
 
-/* 夹爪命令：0 = 张开，1 = 闭合。由 PD14 按键经 30ms 消抖后写入，
-   随 Zigbee 帧的第 14 字节发出。Watch 里可观察。 */
-extern volatile uint8_t g_grip_cmd;
+/* 夹爪命令：0 = 张开，1 = 闭合。由 PD14 按键经消抖后写入，放在帧的 buf[14]。
+   g_grip_toggle_mode：1 = 按一下合、再按一下开（默认，不用全程按住）；
+                       0 = 按住才合、松手就开。
+   g_grip_press_cnt：有效按下次数。按了不动时先看它涨不涨，能一眼分清
+   是按键/接线的问题还是从手那边的问题。 */
+extern volatile uint8_t  g_grip_cmd;
+extern volatile uint8_t  g_grip_toggle_mode;
+extern volatile uint32_t g_grip_press_cnt;
 
 /* 发帧周期（ms）。10 = 100Hz（默认）；20 = 50Hz，可显著降低无线链路负载。
    注意：改这里要同步从手 27_rm_arm 的 Modules/arm.c 里 ARM_INTERP_TICKS

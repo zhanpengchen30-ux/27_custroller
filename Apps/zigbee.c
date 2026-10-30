@@ -29,27 +29,38 @@ static uint8_t zigbee_tx_seq = 0;
 /* ===== 夹爪按键 PD14（2026-10-30）=====
  * CubeMX: PD14 = GPIO_Input / Pull-down / User Label = GRIP_BTN
  *         → main.h 生成 GRIP_BTN_Pin / GRIP_BTN_GPIO_Port
- * 电气：下拉输入，按键另一端接 3V3，按下读到 1 = 夹爪闭合。
- *       选下拉：断线时读 0（张开），比误闭合安全。
- * 消抖：Zigbee_SendJoints 每 10ms 调一次，连续 3 次一致才认（30ms）。 */
-volatile uint8_t g_grip_cmd = 0;      /* 0=开 1=合，Watch 可观察 */
-static uint8_t s_grip_cnt = 0;
-static uint8_t s_grip_raw_last = 0;
+ * 电气：下拉输入，按键另一端接 3V3，按下读到 1。
+ *       选下拉：按键线断了读 0，翻转模式下等于"保持原状"，不会误动作。
+ * 消抖用 HAL_GetTick 计时而不是数调用次数 —— 改 ZIGBEE_TX_PERIOD_MS 时
+ * 消抖窗口不会跟着一起变。 */
+#define GRIP_DEBOUNCE_MS 30u
+
+volatile uint8_t  g_grip_cmd = 0;          /* 发给从手：0=开 1=合 */
+volatile uint8_t  g_grip_toggle_mode = 1;  /* 1=按一下翻转  0=按住才合 */
+volatile uint32_t g_grip_press_cnt = 0;    /* 有效按下次数，排查按键接线用 */
 
 static void Gripper_Scan(void)
 {
+    static uint8_t  stable   = 0;   /* 已确认的按键电平 */
+    static uint8_t  pending  = 0;   /* 正在计时的候选电平 */
+    static uint32_t t_change = 0;
+
     uint8_t raw = (HAL_GPIO_ReadPin(GRIP_BTN_GPIO_Port, GRIP_BTN_Pin) == GPIO_PIN_SET) ? 1u : 0u;
 
-    if (raw == s_grip_raw_last)
+    if (raw != pending)
     {
-        if (s_grip_cnt < 3u) s_grip_cnt++;
-        if (s_grip_cnt >= 3u) g_grip_cmd = raw;
+        pending  = raw;
+        t_change = HAL_GetTick();
+        return;
     }
-    else
-    {
-        s_grip_raw_last = raw;
-        s_grip_cnt = 0;
-    }
+    if (raw == stable) return;
+    if ((HAL_GetTick() - t_change) < GRIP_DEBOUNCE_MS) return;
+
+    stable = raw;
+    if (stable) g_grip_press_cnt++;
+
+    if (g_grip_toggle_mode) { if (stable) g_grip_cmd = (uint8_t)!g_grip_cmd; }
+    else                    g_grip_cmd = stable;
 }
 
 static uint8_t Zigbee_Crc8(const uint8_t *d, uint8_t n)
@@ -85,13 +96,13 @@ void Zigbee_Send(uint8_t *data, uint8_t len)
         zigbee_tx_err_cnt++;
 }
 
-/* 发送主手自己的 6 个关节角给从手（17字节：AA + 6xint16角度 + active + seq + crc8 + 55）。
+/* 发送主手自己的 6 个关节角给从手（18 字节，布局见文件顶部）。
    本板是主手（自定义控制器），发的是 g_arm.q —— 即电机实测、已扣 zero_offset、
    已按 dir 定向后的关节角，不是收到的外部数据。 */
 
 void Zigbee_SendJoints(void)
 {
-    Gripper_Scan();                  /* 10ms 一次，30ms 消抖 */
+    Gripper_Scan();                  /* 消抖窗口见 GRIP_DEBOUNCE_MS */
 
     uint32_t now = HAL_GetTick();
     uint32_t gap = now - last_tx_tick;
@@ -128,9 +139,9 @@ void Zigbee_SendJoints(void)
     }
 
     zigbee_tx_buf[idx++] = active;
-    zigbee_tx_buf[idx++] = g_grip_cmd;                                 /* 夹爪 0=开 1=合 */
-    zigbee_tx_buf[idx++] = zigbee_tx_seq++;                              /* 序号：丢包可数 */
-    zigbee_tx_buf[idx++] = Zigbee_Crc8((const uint8_t *)zigbee_tx_buf, idx); /* 校验 [0..15] */
+    zigbee_tx_buf[idx++] = g_grip_cmd;                                   /* buf[14] 夹爪 0=开 1=合 */
+    zigbee_tx_buf[idx++] = zigbee_tx_seq++;                              /* buf[15] 序号：丢包可数 */
+    zigbee_tx_buf[idx++] = Zigbee_Crc8((const uint8_t *)zigbee_tx_buf, idx); /* buf[16] 校验 [0..15] */
 
     zigbee_tx_buf[idx++] = 0x55;  // 帧尾（共 18 字节）
 
