@@ -36,7 +36,10 @@ static uint8_t zigbee_tx_seq = 0;
 #define GRIP_DEBOUNCE_MS 30u
 
 volatile uint8_t  g_grip_cmd = 0;          /* 发给从手：0=开 1=合 */
-volatile uint8_t  g_grip_toggle_mode = 1;  /* 1=按一下翻转  0=按住才合 */
+volatile uint8_t  g_grip_toggle_mode = 2;
+/* 0 = 点动：按住闭合、松开张开
+ * 1 = 点动按钮 + 翻转：按一下切一次（配自锁键会变成"按两次才切一次"）
+ * 2 = 自锁按钮 + 翻转：电平每次变化都切一次  ← 默认，配自锁键正好"一下一动作" */
 volatile uint32_t g_grip_press_cnt = 0;    /* 有效按下次数，排查按键接线用 */
 volatile uint8_t  g_grip_raw = 0xFF;       /* PD14 原始电平 0/1，不经过消抖。
                                               排查时先看这个：它不动就是线/引脚的问题，
@@ -60,11 +63,29 @@ static void Gripper_Scan(void)
     if (raw == stable) return;
     if ((HAL_GetTick() - t_change) < GRIP_DEBOUNCE_MS) return;
 
+    /* 走到这里说明电平已经稳定地变了（raw != stable 且过了消抖窗），
+       所以下面无条件算一次"有效动作"。 */
     stable = raw;
-    if (stable) g_grip_press_cnt++;
+    g_grip_press_cnt++;
 
-    if (g_grip_toggle_mode) { if (stable) g_grip_cmd = (uint8_t)!g_grip_cmd; }
-    else                    g_grip_cmd = stable;
+    if (g_grip_toggle_mode == 0)
+    {
+        /* 点动：按住闭合，松开张开 */
+        g_grip_cmd = stable;
+    }
+    else if (g_grip_toggle_mode == 1)
+    {
+        /* 点动按钮 + 翻转：只在"按下"沿翻转。
+           配自锁按键会变成"按两次才切一次"（按下去切、弹回来不切），
+           自锁的请用下面的模式 2。 */
+        if (stable) g_grip_cmd = (uint8_t)!g_grip_cmd;
+    }
+    else
+    {
+        /* 自锁按钮 + 翻转：每次电平变化都切一次。
+           自锁键按一下 = 电平翻一次 = 夹爪状态翻一次，正好一下一动作。 */
+        g_grip_cmd = (uint8_t)!g_grip_cmd;
+    }
 }
 
 static uint8_t Zigbee_Crc8(const uint8_t *d, uint8_t n)
