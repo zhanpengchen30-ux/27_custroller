@@ -38,6 +38,9 @@ static uint8_t zigbee_tx_seq = 0;
 volatile uint8_t  g_grip_cmd = 0;          /* 发给从手：0=开 1=合 */
 volatile uint8_t  g_grip_toggle_mode = 1;  /* 1=按一下翻转  0=按住才合 */
 volatile uint32_t g_grip_press_cnt = 0;    /* 有效按下次数，排查按键接线用 */
+volatile uint8_t  g_grip_raw = 0xFF;       /* PD14 原始电平 0/1，不经过消抖。
+                                              排查时先看这个：它不动就是线/引脚的问题，
+                                              它动而 press_cnt 不涨才是消抖逻辑的问题。 */
 
 static void Gripper_Scan(void)
 {
@@ -46,6 +49,7 @@ static void Gripper_Scan(void)
     static uint32_t t_change = 0;
 
     uint8_t raw = (HAL_GPIO_ReadPin(GRIP_BTN_GPIO_Port, GRIP_BTN_Pin) == GPIO_PIN_SET) ? 1u : 0u;
+    g_grip_raw = raw;                    /* 原始电平，Watch 里直接看这个 */
 
     if (raw != pending)
     {

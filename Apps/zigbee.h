@@ -19,6 +19,7 @@ extern volatile uint32_t zb_tx_gap_max_ms;
    g_grip_press_cnt：有效按下次数。按了不动时先看它涨不涨，能一眼分清
    是按键/接线的问题还是从手那边的问题。 */
 extern volatile uint8_t  g_grip_cmd;
+extern volatile uint8_t  g_grip_raw;       /* PD14 原始电平(0/1)，不经消抖：先看它动不动 */
 extern volatile uint8_t  g_grip_toggle_mode;
 extern volatile uint32_t g_grip_press_cnt;
 
